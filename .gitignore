@@ -1,7 +1,7 @@
 images/
 models/
-
-
+dataset2.zip
+dataset/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

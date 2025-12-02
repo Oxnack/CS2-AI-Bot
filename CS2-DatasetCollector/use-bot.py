@@ -9,15 +9,15 @@ from pynput import keyboard, mouse
 from pynput.mouse import Button
 from pynput.keyboard import Key, Listener
 import torch
-from use_bot_1 import GameAIInference
+from use import GameAIInference
 
 class GameBot:
-    def __init__(self, model_path='./models/game_ai_epoch_10.pth'):
+    def __init__(self, model_path='./models/game_ai_epoch_20.pth'):
         self.ai = GameAIInference(model_path)
         self.running = False
         self.activated = False  # Активирован ли бот
         self.last_frame_time = 0
-        self.frame_interval = 1.0 / 60  # Цель 60 FPS
+        self.frame_interval = 1.0 / 30  # 30 FPS для стабильности
         
         # Инициализация для захвата экрана
         self.sct = mss.mss()
@@ -27,16 +27,16 @@ class GameBot:
         self.keyboard_controller = keyboard.Controller()
         self.mouse_controller = mouse.Controller()
         
-        # Маппинг ключей для нейросети
-        self.key_mapping = [
-            'w', 'a', 's', 'd',    # 0-3: WASD
-            'e', 'r',              # 4-5: E, R
-            Key.shift, Key.ctrl,   # 6-7: Shift, Ctrl
-            'space',               # 8: Space
-        ]
-        
         # Текущее состояние клавиш (чтобы не нажимать повторно)
         self.current_keys_pressed = set()
+        
+        # НАСТРОЙКИ МЫШИ - УВЕЛИЧЕНЫ ДЛЯ МАЛЕНЬКИХ ЗНАЧЕНИЙ
+        self.mouse_sensitivity = 100  # УВЕЛИЧЕНО для маленьких значений (-0.07 до 0.07)
+        self.mouse_deadzone = 0.000001     # Меньшая мертвая зона для чувствительности
+        self.smooth_mouse = True       # Сглаживание движений мыши
+        self.last_mouse_dx = 0
+        self.last_mouse_dy = 0
+        self.smoothing_factor = 0.6    # Коэффициент сглаживания
         
         # Hotkey listener
         self.hotkey_listener = None
@@ -61,6 +61,16 @@ class GameBot:
         frame = frame.resize((227, 128))
         frame = frame.convert('L')
         return frame
+
+    def smooth_mouse_movement(self, dx, dy):
+        """Сглаживает движение мыши"""
+        smoothed_dx = self.last_mouse_dx * self.smoothing_factor + dx * (1 - self.smoothing_factor)
+        smoothed_dy = self.last_mouse_dy * self.smoothing_factor + dy * (1 - self.smoothing_factor)
+        
+        self.last_mouse_dx = smoothed_dx
+        self.last_mouse_dy = smoothed_dy
+        
+        return int(smoothed_dx), int(smoothed_dy)
 
     def execute_actions(self, actions):
         """Выполняет предсказанные действия"""
@@ -103,17 +113,30 @@ class GameBot:
             else:
                 self.mouse_controller.release(Button.right)
 
-            # Обрабатываем движение мыши
+            # Обрабатываем движение мыши (ОСНОВНОЕ ИСПРАВЛЕНИЕ)
             mouse_dx = actions['mouse_dx']
             mouse_dy = actions['mouse_dy']
             
-            # Применяем чувствительность (можно настроить)
-            sensitivity = 2.0
-            dx = int(mouse_dx * sensitivity)
-            dy = int(mouse_dy * sensitivity)
+            print(f"Мышь: dx={mouse_dx:.4f}, dy={mouse_dy:.4f}")  # Отладочная информация
             
+            # Применяем мертвую зону
+            if abs(mouse_dx) < self.mouse_deadzone:
+                mouse_dx = 0
+            if abs(mouse_dy) < self.mouse_deadzone:
+                mouse_dy = 0
+                
+            # ПРЕОБРАЗУЕМ В ПИКСЕЛИ С БОЛЬШИМ МНОЖИТЕЛЕМ
+            dx = int(mouse_dx * self.mouse_sensitivity)
+            dy = int((mouse_dy + 0.04) * self.mouse_sensitivity*0)
+            
+            # Сглаживаем движение мыши
+            if self.smooth_mouse and (dx != 0 or dy != 0):
+                dx, dy = self.smooth_mouse_movement(dx, dy)
+            
+            # Двигаем мышь только если есть значительное движение
             if dx != 0 or dy != 0:
                 self.mouse_controller.move(dx, dy)
+                print(f"Движение мыши: {dx}, {dy}")  # Отладочная информация
 
         except Exception as e:
             print(f"Ошибка выполнения действий: {e}")
@@ -130,6 +153,10 @@ class GameBot:
         # Отпускаем кнопки мыши
         self.mouse_controller.release(Button.left)
         self.mouse_controller.release(Button.right)
+        
+        # Сбрасываем состояние сглаживания мыши
+        self.last_mouse_dx = 0
+        self.last_mouse_dy = 0
 
     def game_loop(self):
         """Основной игровой цикл"""
@@ -142,7 +169,7 @@ class GameBot:
             try:
                 # Проверяем активацию
                 if not self.activated:
-                    time.sleep(0.1)
+                    time.sleep(0.02)
                     continue
                 
                 current_time = time.time()
@@ -161,7 +188,7 @@ class GameBot:
                 
                 # Получаем предсказания от нейросети
                 actions = self.ai.get_actions(processed_frame, threshold=0.5)
-                print(actions)
+                
                 # Выполняем действия
                 self.execute_actions(actions)
                 
@@ -169,7 +196,7 @@ class GameBot:
                 frame_count += 1
                 self.last_frame_time = time.time()
                 
-                if frame_count % 100 == 0:
+                if frame_count % 50 == 0:
                     fps = frame_count / (time.time() - start_time)
                     print(f"FPS: {fps:.1f}, Кадров обработано: {frame_count}")
                     
@@ -216,6 +243,10 @@ class GameBot:
         print("Горячие клавиши:")
         print("  = (равно) - старт/стоп бота")
         print("  - (минус) - экстренная остановка")
+        print("Настройки мыши:")
+        print(f"  Чувствительность: {self.mouse_sensitivity}")
+        print(f"  Мертвая зона: {self.mouse_deadzone}")
+        print(f"  Сглаживание: {'ВКЛ' if self.smooth_mouse else 'ВЫКЛ'}")
         print("=" * 50)
         
         try:
@@ -242,7 +273,7 @@ class GameBot:
 
 def main():
     # Проверяем наличие модели
-    model_path = './models/game_ai_epoch_10.pth'
+    model_path = './models/game_ai_epoch_20.pth'
     if not os.path.exists(model_path):
         print(f"Ошибка: Модель {model_path} не найдена!")
         print("Сначала обучите модель с помощью train.py")

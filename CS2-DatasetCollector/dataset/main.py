@@ -123,7 +123,7 @@ def process_frame(frame, output_dir):
     return filename
 
 class CSGODataCollector:
-    def __init__(self, output_dir="dataset"):
+    def __init__(self, output_dir="dataset2"):
         self.key_tracker = KeyTracker()
         self.mouse_tracker = MouseTracker()
         self.output_dir = output_dir
@@ -137,14 +137,14 @@ class CSGODataCollector:
         os.makedirs(self.images_dir, exist_ok=True)
     
     def setup_csv(self):
-        csv_path = os.path.join(self.output_dir, "dataset.csv")
+        csv_path = os.path.join(self.output_dir, "dataset2.csv")
         file_exists = os.path.isfile(csv_path)
         
         self.csv_file = open(csv_path, 'a', newline='')
         self.csv_writer = csv.writer(self.csv_file)
         
         if not file_exists:
-            header = ['filename'] + list(KEY_MAPPING.keys()) + ['mouse_left', 'mouse_right', 'mouse_dx', 'mouse_dy']
+            header = ['filename'] + list(KEY_MAPPING.keys()) + ['mouse_dx', 'mouse_dy']
             self.csv_writer.writerow(header)
     
     def start(self):

@@ -137,7 +137,7 @@ class GameAITrainer:
             print(f'  Mouse Loss: {mouse_loss:.4f}')
             
             # Сохраняем модель каждые 10 эпох
-            if (epoch + 1) % 10 == 0:
+            if (epoch + 1) % 1 == 0:
                 self.save_model(f'game_ai_epoch_{epoch+1}.pth')
     
     def save_model(self, path):
@@ -156,8 +156,8 @@ class GameAITrainer:
 
 def main():
     # Параметры
-    images_folder = './dataset/images'
-    csv_path = './dataset/dataset.csv'
+    images_folder = './dataset2/images'
+    csv_path = './dataset2/dataset2.csv'
     batch_size = 32
     epochs = 50
     
